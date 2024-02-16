@@ -1,3 +1,14 @@
+require('dotenv').config();
+
+const cloudinary = require('cloudinary').v2;
+
+cloudinary.config({ 
+    cloud_name: process.env.CLOUD_NAME, 
+    api_key: process.env.API_KEY, 
+    api_secret: process.env.API_SECRET,
+    secure: true
+  });
+
 // Import necessary modules
 const express = require('express');
 const multer = require('multer');
@@ -8,12 +19,12 @@ const { PDFDocument } = require('pdf-lib');
 
 // Initialize Express app
 const app = express();
-const port = 3000; // You can choose any port that's available
+const port = 3000; 
 
-// Configure Multer
+// Configuring Multer
 const upload = multer({ dest: 'uploads/' });
 
-// Serve static files from 'public' folder
+
 app.use(express.static('public'));
 
 // File upload route
@@ -39,7 +50,8 @@ app.post('/upload', upload.array('heicFiles'), async (req, res) => {
 
             // Add the JPEG as a page in the PDF
             const jpgImage = await pdfDoc.embedJpg(outputBuffer);
-            const jpgDims = jpgImage.scale(0.5); // Scale image to 50% of its original size
+            const jpgDims = jpgImage.scale(0.5); // Scaling image to 50% of its original size. heic can be large
+        
 
             const page = pdfDoc.addPage([jpgDims.width, jpgDims.height]);
             page.drawImage(jpgImage, {
@@ -79,7 +91,10 @@ app.post('/upload', upload.array('heicFiles'), async (req, res) => {
     });
 });
 
+//since we're using vercel for deployment, we don't need this
 // Start the server
-app.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}`);
-});
+// app.listen(port, () => {
+//     console.log(`Server running on http://localhost:${port}`);
+// });
+
+module.exports = app;
