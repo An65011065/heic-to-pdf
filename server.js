@@ -1,10 +1,13 @@
-require('dotenv').config();
-const express = require('express');
-const multer = require('multer');
-const fetch = require('node-fetch'); 
-const { CloudinaryStorage } = require('multer-storage-cloudinary');
-const cloudinary = require('cloudinary').v2;
-const { PDFDocument } = require('pdf-lib');
+import dotenv from 'dotenv';
+dotenv.config();
+
+import { v2 as cloudinary } from 'cloudinary';
+import express from 'express';
+import multer from 'multer';
+import fetch from 'node-fetch';
+import { CloudinaryStorage } from 'multer-storage-cloudinary';
+import { PDFDocument } from 'pdf-lib';
+
 
 cloudinary.config({
   cloud_name: process.env.CLOUD_NAME,
@@ -56,4 +59,9 @@ app.post('/upload', upload.array('heicFiles'), async (req, res) => {
   res.send(pdfBytes);
 });
 
-module.exports = app;
+export default app;
+
+const port = process.env.PORT || 3000;
+app.listen(port, () => {
+  console.log(`Server running on http://localhost:${port}`);
+});
