@@ -1,100 +1,59 @@
 require('dotenv').config();
-
-const cloudinary = require('cloudinary').v2;
-
-cloudinary.config({ 
-    cloud_name: process.env.CLOUD_NAME, 
-    api_key: process.env.API_KEY, 
-    api_secret: process.env.API_SECRET,
-    secure: true
-  });
-
-// Import necessary modules
 const express = require('express');
 const multer = require('multer');
-const fs = require('fs');
-const path = require('path');
-const convert = require('heic-convert');
+const fetch = require('node-fetch'); 
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const cloudinary = require('cloudinary').v2;
 const { PDFDocument } = require('pdf-lib');
 
-// Initialize Express app
+cloudinary.config({
+  cloud_name: process.env.CLOUD_NAME,
+  api_key: process.env.API_KEY,
+  api_secret: process.env.API_SECRET,
+  secure: true
+});
+
 const app = express();
-const port = 3000; 
 
-// Configuring Multer
-const upload = multer({ dest: 'uploads/' });
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'upload',
+    format: async (req, file) => 'jpeg', // Assuming direct conversion to jpeg is desired
+    public_id: (req, file) => file.originalname,
+  },
+});
 
+const upload = multer({ storage: storage });
 
 app.use(express.static('public'));
 
-// File upload route
 app.post('/upload', upload.array('heicFiles'), async (req, res) => {
-    if (!req.files || req.files.length === 0) {
-        return res.status(400).send('No files were uploaded.');
+  if (!req.files || req.files.length === 0) {
+    return res.status(400).send('No files were uploaded.');
+  }
+
+  const pdfDoc = await PDFDocument.create();
+
+  for (const file of req.files) {
+    try {
+      const response = await fetch(file.path);
+      const arrayBuffer = await response.arrayBuffer();
+      const jpgImage = await pdfDoc.embedJpg(Buffer.from(arrayBuffer));
+      const jpgDims = jpgImage.scale(0.5);
+      const page = pdfDoc.addPage([jpgDims.width, jpgDims.height]);
+      page.drawImage(jpgImage, { x: 0, y: 0, width: jpgDims.width, height: jpgDims.height });
+    } catch (error) {
+      console.error('Error processing file:', error);
+      return res.status(500).send('Error during file processing.');
     }
+  }
 
-    // Create a new PDF document
-    const pdfDoc = await PDFDocument.create();
-
-    for (const file of req.files) {
-        const inputPath = file.path;
-
-        try {
-            // Convert HEIC to JPEG
-            const inputBuffer = fs.readFileSync(inputPath);
-            const outputBuffer = await convert({
-                buffer: inputBuffer, 
-                format: 'JPEG',      
-                quality: 0.8         
-            });
-
-            // Add the JPEG as a page in the PDF
-            const jpgImage = await pdfDoc.embedJpg(outputBuffer);
-            const jpgDims = jpgImage.scale(0.5); // Scaling image to 50% of its original size. heic can be large
-        
-
-            const page = pdfDoc.addPage([jpgDims.width, jpgDims.height]);
-            page.drawImage(jpgImage, {
-                x: 0,
-                y: 0,
-                width: jpgDims.width,
-                height: jpgDims.height,
-            });
-
-            // Optionally delete the original uploaded file to clean up
-            fs.unlinkSync(inputPath);
-
-        } catch (error) {
-            console.error('Error converting file:', error);
-            return res.status(500).send('Error during file conversion.');
-        }
-    }
-
-    // Serialize the PDFDocument to bytes (a Uint8Array)
-    const pdfBytes = await pdfDoc.save();
-
-    // Define the PDF file name and path
-    const pdfName = `converted_files_${Date.now()}.pdf`;
-    const pdfPath = path.join(__dirname, 'uploads', pdfName);
-
-    // Write PDF to disk
-    fs.writeFileSync(pdfPath, pdfBytes);
-
-    // Send the PDF file as a download to the client
-    res.download(pdfPath, pdfName, (err) => {
-        if (err) {
-            console.error('Error sending file:', err);
-            res.status(500).send('Error downloading file.');
-        }
-        // Optionally delete the PDF file after sending it to the client
-        fs.unlinkSync(pdfPath);
-    });
+  const pdfBytes = await pdfDoc.save();
+  res.setHeader('Content-Type', 'application/pdf');
+  const pdfName = `converted_files_${Date.now()}.pdf`;
+  res.setHeader('Content-Disposition', `attachment; filename="${pdfName}"`);
+  res.send(pdfBytes);
 });
-
-//since we're using vercel for deployment, we don't need this
-// Start the server
-// app.listen(port, () => {
-//     console.log(`Server running on http://localhost:${port}`);
-// });
 
 module.exports = app;
