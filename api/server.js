@@ -61,7 +61,9 @@ app.post('/upload', upload.array('heicFiles'), async (req, res) => {
 
 export default app;
 
-const port = process.env.PORT || 3000;
-app.listen(port, () => {
-  console.log(`Server running on http://localhost:${port}`);
-});
+const port =  3001;
+if (!process.env.VERCEL) {
+  app.listen(port, () => {
+    console.log(`Server running on http://localhost:${port}`);
+  });
+}
